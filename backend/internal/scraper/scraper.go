@@ -28,6 +28,8 @@ type ScrapedJob struct {
 	Source          models.JobSource
 	SourceURL       string
 	PostedAt        *time.Time
+	SalaryMin       *float64
+	SalaryMax       *float64
 }
 
 // getBrowser connects to an existing browser via CDP if one is available
@@ -84,6 +86,8 @@ func SaveJobs(jobs []ScrapedJob, source models.JobSource, logID uint) (int, erro
 			SourceURL:       sj.SourceURL,
 			Status:          models.StatusPending,
 			SalaryCurrency:  "KES",
+			SalaryMin:       sj.SalaryMin,
+			SalaryMax:       sj.SalaryMax,
 			ScrapedAt:       &now,
 			PostedAt:        sj.PostedAt,
 		}
@@ -154,6 +158,18 @@ func RunScraper(source models.JobSource) {
 		finishLog(logID, 0, 0, err.Error())
 		return
 	}
+
+	// Enrich each job via Ollama (cleans fields, extracts salary, filters non-jobs).
+	// Falls back gracefully when Ollama is not reachable.
+	enriched := make([]ScrapedJob, 0, len(jobs))
+	for _, j := range jobs {
+		j, isJob := enrichJob(j)
+		if isJob {
+			enriched = append(enriched, j)
+		}
+	}
+	log.Printf("Scrape enrich (%s): %d → %d jobs after filtering", source, len(jobs), len(enriched))
+	jobs = enriched
 
 	saved, _ := SaveJobs(jobs, source, logID)
 	finishLog(logID, len(jobs), saved, "")

@@ -190,6 +190,148 @@ func (h *AdminHandler) DeleteJob(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Job deleted"})
 }
 
+// POST /api/admin/jobs
+func (h *AdminHandler) CreateJob(c *gin.Context) {
+	var req struct {
+		Title           string   `json:"title" binding:"required"`
+		Company         string   `json:"company" binding:"required"`
+		Description     string   `json:"description"`
+		Requirements    string   `json:"requirements"`
+		Qualifications  string   `json:"qualifications"`
+		SalaryMin       *float64 `json:"salary_min"`
+		SalaryMax       *float64 `json:"salary_max"`
+		SalaryCurrency  string   `json:"salary_currency"`
+		Location        string   `json:"location"`
+		County          string   `json:"county"`
+		WorkType        string   `json:"work_type"`
+		ExperienceLevel string   `json:"experience_level"`
+		Industry        string   `json:"industry"`
+		SourceURL       string   `json:"source_url"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	currency := req.SalaryCurrency
+	if currency == "" {
+		currency = "KES"
+	}
+	sourceURL := req.SourceURL
+	if sourceURL == "" {
+		sourceURL = "manual-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+
+	job := models.Job{
+		Title:           req.Title,
+		Company:         req.Company,
+		Description:     req.Description,
+		Requirements:    req.Requirements,
+		Qualifications:  req.Qualifications,
+		SalaryMin:       req.SalaryMin,
+		SalaryMax:       req.SalaryMax,
+		SalaryCurrency:  currency,
+		Location:        req.Location,
+		County:          req.County,
+		WorkType:        models.WorkType(req.WorkType),
+		ExperienceLevel: models.ExperienceLevel(req.ExperienceLevel),
+		Industry:        req.Industry,
+		Source:          models.SourceManual,
+		SourceURL:       sourceURL,
+		Status:          models.StatusPending,
+	}
+
+	if err := database.DB.Create(&job).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create job: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, job)
+}
+
+// PUT /api/admin/jobs/:id
+func (h *AdminHandler) UpdateJob(c *gin.Context) {
+	id := c.Param("id")
+
+	var job models.Job
+	if err := database.DB.First(&job, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch job"})
+		return
+	}
+
+	var req struct {
+		Title           string   `json:"title"`
+		Company         string   `json:"company"`
+		Description     string   `json:"description"`
+		Requirements    string   `json:"requirements"`
+		Qualifications  string   `json:"qualifications"`
+		SalaryMin       *float64 `json:"salary_min"`
+		SalaryMax       *float64 `json:"salary_max"`
+		SalaryCurrency  string   `json:"salary_currency"`
+		Location        string   `json:"location"`
+		County          string   `json:"county"`
+		WorkType        string   `json:"work_type"`
+		ExperienceLevel string   `json:"experience_level"`
+		Industry        string   `json:"industry"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := map[string]interface{}{}
+	if req.Title != "" {
+		updates["title"] = req.Title
+	}
+	if req.Company != "" {
+		updates["company"] = req.Company
+	}
+	if req.Description != "" {
+		updates["description"] = req.Description
+	}
+	if req.Requirements != "" {
+		updates["requirements"] = req.Requirements
+	}
+	if req.Qualifications != "" {
+		updates["qualifications"] = req.Qualifications
+	}
+	if req.SalaryMin != nil {
+		updates["salary_min"] = req.SalaryMin
+	}
+	if req.SalaryMax != nil {
+		updates["salary_max"] = req.SalaryMax
+	}
+	if req.SalaryCurrency != "" {
+		updates["salary_currency"] = req.SalaryCurrency
+	}
+	if req.Location != "" {
+		updates["location"] = req.Location
+	}
+	if req.County != "" {
+		updates["county"] = req.County
+	}
+	if req.WorkType != "" {
+		updates["work_type"] = req.WorkType
+	}
+	if req.ExperienceLevel != "" {
+		updates["experience_level"] = req.ExperienceLevel
+	}
+	if req.Industry != "" {
+		updates["industry"] = req.Industry
+	}
+
+	if err := database.DB.Model(&job).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update job"})
+		return
+	}
+
+	c.JSON(http.StatusOK, job)
+}
+
 // POST /api/admin/scrape
 func (h *AdminHandler) TriggerScrape(c *gin.Context) {
 	var req struct {

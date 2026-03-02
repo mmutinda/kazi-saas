@@ -138,6 +138,25 @@ func ScrapeLinkedIn() ([]ScrapedJob, error) {
 	return allJobs, nil
 }
 
+// jsCountSelectors counts how many elements each candidate selector matches.
+// Used to diagnose why card extraction returns 0.
+const jsCountSelectors = `() => {
+	const sels = [
+		'li.jobs-search-results__list-item',
+		'.jobs-search-results-grid__list li',
+		'.scaffold-layout__list-container li',
+		'.jobs-search__results-list li',
+		'ul.jobs-search__results-list > li',
+		'div.job-card-container',
+	];
+	const counts = {};
+	for (const s of sels) counts[s] = document.querySelectorAll(s).length;
+	counts['_total_li'] = document.querySelectorAll('li').length;
+	counts['_total_a_jobs'] = document.querySelectorAll('a[href*="/jobs/"]').length;
+	counts['_page_title'] = document.title;
+	return counts;
+}`
+
 func scrapeLinkedInKeyword(browser *rod.Browser, keyword string) ([]ScrapedJob, error) {
 	page := browser.MustPage("")
 	defer page.MustClose()
@@ -146,6 +165,7 @@ func scrapeLinkedInKeyword(browser *rod.Browser, keyword string) ([]ScrapedJob, 
 		"https://www.linkedin.com/jobs/search/?keywords=%s&location=Kenya&f_TPR=r86400&refresh=true",
 		strings.ReplaceAll(keyword, " ", "%20"),
 	)
+	log.Printf("LinkedIn [%s]: navigating to %s", keyword, searchURL)
 
 	if err := page.Navigate(searchURL); err != nil {
 		return nil, fmt.Errorf("navigate: %w", err)
@@ -153,19 +173,18 @@ func scrapeLinkedInKeyword(browser *rod.Browser, keyword string) ([]ScrapedJob, 
 	page.WaitLoad()
 	time.Sleep(3 * time.Second)
 
-	// Log page info for debugging
 	info, _ := page.Info()
-	log.Printf("LinkedIn [%s]: url=%s", keyword, info.URL)
+	log.Printf("LinkedIn [%s]: landed url=%s", keyword, info.URL)
 
-	// Detect redirect to login
+	// Detect redirect to auth
 	if strings.Contains(info.URL, "/authwall") || strings.Contains(info.URL, "/login") || strings.Contains(info.URL, "/checkpoint") {
-		return nil, fmt.Errorf("LinkedIn redirected to login — please log in via the Edge CDP browser")
+		return nil, fmt.Errorf("LinkedIn redirected to auth wall — log in via the Edge CDP browser")
 	}
 
 	// Run JS extraction
 	result, err := page.Eval(jsExtractLinkedInJobs)
 	if err != nil {
-		log.Printf("LinkedIn JS eval error [%s]: %v", keyword, err)
+		log.Printf("LinkedIn [%s]: JS eval error: %v", keyword, err)
 		return nil, nil
 	}
 
@@ -173,16 +192,32 @@ func scrapeLinkedInKeyword(browser *rod.Browser, keyword string) ([]ScrapedJob, 
 	if err != nil {
 		return nil, fmt.Errorf("marshal result: %w", err)
 	}
+	log.Printf("LinkedIn [%s]: raw JS result: %s", keyword, raw)
 
 	var cards []linkedInCard
 	if err := json.Unmarshal(raw, &cards); err != nil {
 		return nil, fmt.Errorf("unmarshal cards: %w", err)
 	}
+	log.Printf("LinkedIn [%s]: %d cards parsed from JS", keyword, len(cards))
 
-	log.Printf("LinkedIn [%s]: found %d cards", keyword, len(cards))
+	// If nothing was found, run selector diagnostics to show which DOM elements exist.
+	if len(cards) == 0 {
+		if diag, diagErr := page.Eval(jsCountSelectors); diagErr == nil {
+			diagRaw, _ := json.Marshal(diag.Value)
+			log.Printf("LinkedIn [%s]: selector diagnostics: %s", keyword, diagRaw)
+		}
+	}
 
 	var jobs []ScrapedJob
 	for _, c := range cards {
+		if c.Title == "" {
+			log.Printf("LinkedIn [%s]: skipping card — empty title (url=%s)", keyword, c.URL)
+			continue
+		}
+		if c.URL == "" {
+			log.Printf("LinkedIn [%s]: skipping card — empty url (title=%q)", keyword, c.Title)
+			continue
+		}
 		job := ScrapedJob{
 			Title:           c.Title,
 			Company:         c.Company,
@@ -194,8 +229,10 @@ func scrapeLinkedInKeyword(browser *rod.Browser, keyword string) ([]ScrapedJob, 
 			ExperienceLevel: inferExperienceLevel(c.Title),
 		}
 		job.County = inferCounty(job.Location)
+		log.Printf("LinkedIn [%s]: queued job title=%q company=%q url=%s", keyword, job.Title, job.Company, job.SourceURL)
 		jobs = append(jobs, job)
 	}
+	log.Printf("LinkedIn [%s]: %d jobs queued for enrichment", keyword, len(jobs))
 
 	return jobs, nil
 }

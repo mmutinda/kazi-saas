@@ -20,7 +20,7 @@ export function HomePage() {
               <Briefcase className="w-5 h-5" />
             </div>
             <span className="font-bold text-xl text-gray-900">Kazi</span>
-            <span className="text-gray-400 text-sm ml-1 hidden sm:block">Kenya Job Board</span>
+            <span className="text-gray-400 text-sm ml-1 hidden sm:block">AI-Powered Job Search</span>
           </div>
           <a href="/admin/login" className="text-sm text-gray-500 hover:text-gray-800">
             Admin
@@ -35,7 +35,7 @@ export function HomePage() {
             Find Your Next Job in Kenya
           </h1>
           <p className="text-blue-200 text-lg max-w-xl mx-auto">
-            Curated opportunities from LinkedIn, Twitter & Facebook — verified by our team
+            AI-powered job search — curated from LinkedIn, Twitter & Facebook and enriched by Claude
           </p>
           {data && (
             <p className="mt-4 text-blue-100 text-sm">

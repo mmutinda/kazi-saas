@@ -42,6 +42,10 @@ func main() {
 		c.Next()
 	})
 
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "Hello World"})
+	})
+
 	// Public routes
 	jobsHandler := &handlers.JobsHandler{}
 	r.GET("/api/jobs", jobsHandler.ListJobs)
@@ -55,7 +59,9 @@ func main() {
 	admin.Use(middleware.AuthRequired(cfg.JWTSecret))
 	{
 		admin.GET("/jobs", adminHandler.ListJobs)
+		admin.POST("/jobs", adminHandler.CreateJob)
 		admin.GET("/jobs/:id", adminHandler.GetJob)
+		admin.PUT("/jobs/:id", adminHandler.UpdateJob)
 		admin.PUT("/jobs/:id/approve", adminHandler.ApproveJob)
 		admin.PUT("/jobs/:id/reject", adminHandler.RejectJob)
 		admin.DELETE("/jobs/:id", adminHandler.DeleteJob)
