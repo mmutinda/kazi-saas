@@ -60,6 +60,7 @@ func main() {
 	{
 		admin.GET("/jobs", adminHandler.ListJobs)
 		admin.POST("/jobs", adminHandler.CreateJob)
+		admin.PUT("/jobs/approve-all", adminHandler.ApproveAllPending)
 		admin.GET("/jobs/:id", adminHandler.GetJob)
 		admin.PUT("/jobs/:id", adminHandler.UpdateJob)
 		admin.PUT("/jobs/:id/approve", adminHandler.ApproveJob)

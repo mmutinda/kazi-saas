@@ -126,6 +126,25 @@ func (h *AdminHandler) Stats(c *gin.Context) {
 	})
 }
 
+// PUT /api/admin/jobs/approve-all
+func (h *AdminHandler) ApproveAllPending(c *gin.Context) {
+	adminID := c.GetUint("admin_id")
+	now := time.Now()
+
+	result := database.DB.Model(&models.Job{}).Where("status = ?", models.StatusPending).Updates(map[string]interface{}{
+		"status":      models.StatusApproved,
+		"approved_at": &now,
+		"approved_by": adminID,
+	})
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve jobs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "All pending jobs approved", "count": result.RowsAffected})
+}
+
 // PUT /api/admin/jobs/:id/approve
 func (h *AdminHandler) ApproveJob(c *gin.Context) {
 	id := c.Param("id")

@@ -44,6 +44,17 @@ export function useAdminStats() {
   })
 }
 
+export function useApproveAllPending() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => adminApi.approveAllPending(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-jobs'] })
+      qc.invalidateQueries({ queryKey: ['admin-stats'] })
+    },
+  })
+}
+
 export function useApproveJob() {
   const qc = useQueryClient()
   return useMutation({

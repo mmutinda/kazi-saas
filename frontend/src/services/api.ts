@@ -48,6 +48,9 @@ export const adminApi = {
   getJob: (id: number | string): Promise<Job> =>
     api.get(`/admin/jobs/${id}`).then((r) => r.data),
 
+  approveAllPending: (): Promise<{ message: string; count: number }> =>
+    api.put('/admin/jobs/approve-all').then((r) => r.data),
+
   approveJob: (id: number): Promise<{ message: string }> =>
     api.put(`/admin/jobs/${id}/approve`).then((r) => r.data),
 

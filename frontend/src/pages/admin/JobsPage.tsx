@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Briefcase, Loader2, LogOut, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Briefcase, Loader2, LogOut, ChevronLeft, ChevronRight, CheckCheck } from 'lucide-react'
 import { AdminJobRow } from '@/components/admin/AdminJobRow'
 import { ApprovalModal } from '@/components/admin/ApprovalModal'
-import { useAdminAuth, useAdminJobs, useApproveJob, useRejectJob, useDeleteJob } from '@/hooks/useAdmin'
+import { useAdminAuth, useAdminJobs, useApproveAllPending, useApproveJob, useRejectJob, useDeleteJob } from '@/hooks/useAdmin'
 import type { Job } from '@/types'
 
 type ModalMode = 'approve' | 'reject' | 'delete' | 'view' | null
@@ -13,11 +13,13 @@ export function JobsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const status = searchParams.get('status') ?? ''
+  const source = searchParams.get('source') ?? ''
   const page = Number(searchParams.get('page') ?? '1')
   const q = searchParams.get('q') ?? ''
 
   const { data, isLoading } = useAdminJobs({
     ...(status && { status }),
+    ...(source && { source }),
     ...(q && { q }),
     page,
     limit: 20,
@@ -26,9 +28,21 @@ export function JobsPage() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [modalMode, setModalMode] = useState<ModalMode>(null)
 
+  const approveAllMutation = useApproveAllPending()
   const approveMutation = useApproveJob()
   const rejectMutation = useRejectJob()
   const deleteMutation = useDeleteJob()
+
+  const [confirmApproveAll, setConfirmApproveAll] = useState(false)
+
+  const handleApproveAll = async () => {
+    if (!confirmApproveAll) {
+      setConfirmApproveAll(true)
+      return
+    }
+    await approveAllMutation.mutateAsync()
+    setConfirmApproveAll(false)
+  }
 
   const openModal = (job: Job, mode: ModalMode) => {
     setSelectedJob(job)
@@ -61,7 +75,7 @@ export function JobsPage() {
     setSearchParams(next)
   }
 
-  const isActionLoading = approveMutation.isPending || rejectMutation.isPending || deleteMutation.isPending
+  const isActionLoading = approveAllMutation.isPending || approveMutation.isPending || rejectMutation.isPending || deleteMutation.isPending
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -107,6 +121,18 @@ export function JobsPage() {
             <option value="rejected">Rejected</option>
           </select>
 
+          <select
+            value={source}
+            onChange={(e) => setFilter('source', e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All sources</option>
+            <option value="linkedin">LinkedIn</option>
+            <option value="twitter">Twitter</option>
+            <option value="facebook">Facebook</option>
+            <option value="manual">Manual</option>
+          </select>
+
           <input
             type="text"
             placeholder="Search title or company..."
@@ -114,6 +140,24 @@ export function JobsPage() {
             onChange={(e) => setFilter('q', e.target.value)}
             className="flex-1 min-w-48 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+
+          <button
+            onClick={handleApproveAll}
+            onBlur={() => setConfirmApproveAll(false)}
+            disabled={approveAllMutation.isPending}
+            className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+              confirmApproveAll
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-white border border-gray-200 text-gray-700 hover:bg-green-50 hover:border-green-300 hover:text-green-700'
+            }`}
+          >
+            {approveAllMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <CheckCheck className="w-4 h-4" />
+            )}
+            {confirmApproveAll ? 'Click again to confirm' : 'Approve all pending'}
+          </button>
         </div>
 
         {/* Table */}
